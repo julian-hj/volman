@@ -9,12 +9,14 @@ const (
 	ListDriversRoute = "drivers"
 	MountRoute       = "mount"
 	UnmountRoute     = "unmount"
+	CreateRoute      = "create"
 )
 
 var Routes = rata.Routes{
 	{Path: "/drivers", Method: "GET", Name: ListDriversRoute},
 	{Path: "/drivers/mount", Method: "POST", Name: MountRoute},
 	{Path: "/drivers/unmount", Method: "POST", Name: UnmountRoute},
+	{Path: "/drivers/create", Method: "POST", Name: CreateRoute},
 }
 
 type ListDriversResponse struct {
@@ -24,7 +26,12 @@ type ListDriversResponse struct {
 type MountRequest struct {
 	DriverId string `json:"driverId"`
 	VolumeId string `json:"volumeId"`
-	Config   string `json:"config"`
+}
+
+type CreateRequest struct {
+	DriverId string                 `json:"driverId"`
+	VolumeId string                 `json:"volumeId"`
+	Opts     map[string]interface{} `json:"opts"`
 }
 
 type MountResponse struct {

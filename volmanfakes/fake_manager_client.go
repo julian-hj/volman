@@ -40,6 +40,17 @@ type FakeManager struct {
 	unmountReturns struct {
 		result1 error
 	}
+	CreateStub        func(logger lager.Logger, driverId string, volumeName string, opts map[string]interface{}) error
+	createMutex       sync.RWMutex
+	createArgsForCall []struct {
+		logger     lager.Logger
+		driverId   string
+		volumeName string
+		opts       map[string]interface{}
+	}
+	createReturns struct {
+		result1 error
+	}
 }
 
 func (fake *FakeManager) ListDrivers(logger lager.Logger) (volman.ListDriversResponse, error) {
@@ -141,6 +152,41 @@ func (fake *FakeManager) UnmountArgsForCall(i int) (lager.Logger, string, string
 func (fake *FakeManager) UnmountReturns(result1 error) {
 	fake.UnmountStub = nil
 	fake.unmountReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeManager) Create(logger lager.Logger, driverId string, volumeName string, opts map[string]interface{}) error {
+	fake.createMutex.Lock()
+	fake.createArgsForCall = append(fake.createArgsForCall, struct {
+		logger     lager.Logger
+		driverId   string
+		volumeName string
+		opts       map[string]interface{}
+	}{logger, driverId, volumeName, opts})
+	fake.createMutex.Unlock()
+	if fake.CreateStub != nil {
+		return fake.CreateStub(logger, driverId, volumeName, opts)
+	} else {
+		return fake.createReturns.result1
+	}
+}
+
+func (fake *FakeManager) CreateCallCount() int {
+	fake.createMutex.RLock()
+	defer fake.createMutex.RUnlock()
+	return len(fake.createArgsForCall)
+}
+
+func (fake *FakeManager) CreateArgsForCall(i int) (lager.Logger, string, string, map[string]interface{}) {
+	fake.createMutex.RLock()
+	defer fake.createMutex.RUnlock()
+	return fake.createArgsForCall[i].logger, fake.createArgsForCall[i].driverId, fake.createArgsForCall[i].volumeName, fake.createArgsForCall[i].opts
+}
+
+func (fake *FakeManager) CreateReturns(result1 error) {
+	fake.CreateStub = nil
+	fake.createReturns = struct {
 		result1 error
 	}{result1}
 }

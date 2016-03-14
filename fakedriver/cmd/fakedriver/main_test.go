@@ -14,11 +14,12 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gexec"
+	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
 	"github.com/tedsuo/ifrit/ginkgomon"
 )
 
-var _ = Describe("FakeDriverServer", func() {
+var _ = Describe("Fake Driver Integration", func() {
 
 	BeforeEach(func() {
 		fakedriverServerProcess = ginkgomon.Invoke(runner)
@@ -26,7 +27,6 @@ var _ = Describe("FakeDriverServer", func() {
 	})
 
 	Context("given a started fakedriver server", func() {
-
 		It("should not exit", func() {
 			Consistently(runner).ShouldNot(Exit())
 		})
@@ -43,26 +43,31 @@ var _ = Describe("FakeDriverServer", func() {
 		})
 
 		Context("given a mounted volume", func() {
-			var err error
 			var volumeId string
-			var mountPoint voldriver.MountResponse
+			var volumeName string
+			var mountResponse voldriver.MountResponse
 
 			JustBeforeEach(func() {
 				client := driverhttp.NewRemoteClient(fmt.Sprintf("http://0.0.0.0:%d", fakedriverServerPort))
 				testLogger := lagertest.NewTestLogger("FakeDriver Server Test")
 				node := GinkgoParallelNode()
-				volumeId = "fake-volume_" + strconv.Itoa(node)
-				testLogger.Info(fmt.Sprintf("Mounting volume: %s", volumeId))
-				mountRequest := voldriver.MountRequest{VolumeId: volumeId}
-				mountPoint, err = client.Mount(testLogger, mountRequest)
-				Expect(err).NotTo(HaveOccurred())
+				volumeId = "fake-volume-id_" + strconv.Itoa(node)
+				volumeName = "fake-volume-name_" + strconv.Itoa(node)
+				testLogger.Info("creating-volume", lager.Data{"name": volumeName})
+				createRequest := voldriver.CreateRequest{Name: volumeName, Opts: map[string]interface{}{"volume_id": volumeId}}
+				createResponse := client.Create(testLogger, createRequest)
+				Expect(createResponse.Err).To(Equal(""))
+
+				mountRequest := voldriver.MountRequest{Name: volumeName}
+				mountResponse = client.Mount(testLogger, mountRequest)
+				Expect(mountResponse.Err).To(Equal(""))
 			})
 
 			It("should exist", func() {
-				Expect(mountPoint.Path).NotTo(Equal(""))
-				defer os.Remove(mountPoint.Path)
+				Expect(mountResponse.Mountpoint).NotTo(Equal(""))
+				defer os.Remove(mountResponse.Mountpoint)
 
-				matches, err := filepath.Glob(mountPoint.Path)
+				matches, err := filepath.Glob(mountResponse.Mountpoint)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(matches)).To(Equal(1))
 			})
@@ -74,13 +79,13 @@ var _ = Describe("FakeDriverServer", func() {
 				err := client.Unmount(testLogger, unmountRequest)
 				Expect(err).NotTo(HaveOccurred())
 
-				matches, err := filepath.Glob(mountPoint.Path)
+				matches, err := filepath.Glob(mountResponse.Mountpoint)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(len(matches)).To(Equal(0))
 			})
 
 			AfterEach(func() {
-				os.Remove(mountPoint.Path)
+				os.Remove(mountResponse.Mountpoint)
 			})
 		})
 	})

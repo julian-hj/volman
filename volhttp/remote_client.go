@@ -55,7 +55,7 @@ func (r *remoteClient) Mount(logger lager.Logger, driverId string, volumeId stri
 	logger.Info("start")
 	defer logger.Info("end")
 
-	MountRequest := volman.MountRequest{driverId, volumeId, config}
+	MountRequest := volman.MountRequest{driverId, volumeId}
 
 	sendingJson, err := json.Marshal(MountRequest)
 	if err != nil {
@@ -120,7 +120,43 @@ func (r *remoteClient) Unmount(logger lager.Logger, driverId string, volumeId st
 	}
 
 	return nil
+}
 
+func (r *remoteClient) Create(logger lager.Logger, driverId string, volumeId string, opts map[string]interface{}) error {
+	logger = logger.Session("create")
+	logger.Info("start")
+	defer logger.Info("end")
+
+	createRequest := volman.CreateRequest{
+		DriverId: driverId,
+		VolumeId: volumeId,
+		Opts:     opts,
+	}
+	payload, err := json.Marshal(createRequest)
+	if err != nil {
+		return r.clientError(logger, err, fmt.Sprintf("Error marshalling JSON request %#v", createRequest))
+	}
+
+	request, err := r.reqGen.CreateRequest(volman.CreateRoute, nil, bytes.NewReader(payload))
+
+	if err != nil {
+		return r.clientError(logger, err, fmt.Sprintf("Error creating request to %s", volman.CreateRoute))
+	}
+
+	response, err := r.HttpClient.Do(request)
+	if err != nil {
+		return r.clientError(logger, err, fmt.Sprintf("Error creating volume %s", volumeId))
+	}
+
+	if response.StatusCode == 500 {
+		var remoteError volman.Error
+		if err := unmarshallJSON(logger, response.Body, &remoteError); err != nil {
+			return r.clientError(logger, err, fmt.Sprintf("Error parsing 500 response from %s", volman.CreateRoute))
+		}
+		return remoteError
+	}
+
+	return nil
 }
 
 func unmarshallJSON(logger lager.Logger, reader io.ReadCloser, jsonResponse interface{}) error {

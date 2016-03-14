@@ -14,7 +14,7 @@ import (
 
 func respondWithError(logger lager.Logger, info string, err error, w http.ResponseWriter) {
 	logger.Error(info, err)
-	cf_http_handlers.WriteJSONResponse(w, http.StatusInternalServerError, voldriver.NewError(err))
+	cf_http_handlers.WriteJSONResponse(w, http.StatusInternalServerError, voldriver.ErrorResponse{Err: err.Error()})
 }
 
 func NewHandler(logger lager.Logger, client voldriver.Driver) (http.Handler, error) {
@@ -22,8 +22,8 @@ func NewHandler(logger lager.Logger, client voldriver.Driver) (http.Handler, err
 	logger.Info("start")
 	defer logger.Info("end")
 	var handlers = rata.Handlers{
-
 		"mount": http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			volumeID := ""
 			logger.Info("mount")
 			defer logger.Info("mount end")
 			body, err := ioutil.ReadAll(req.Body)
@@ -38,9 +38,9 @@ func NewHandler(logger lager.Logger, client voldriver.Driver) (http.Handler, err
 				return
 			}
 
-			mountResponse, err := client.Mount(logger, mountRequest)
+			mountResponse := client.Mount(logger, mountRequest)
 			if err != nil {
-				respondWithError(logger, fmt.Sprintf("Error mounting volume %s", mountRequest.VolumeId), err, w)
+				respondWithError(logger, fmt.Sprintf("Error mounting volume %s", volumeID), err, w)
 				return
 			}
 
@@ -65,6 +65,30 @@ func NewHandler(logger lager.Logger, client voldriver.Driver) (http.Handler, err
 			err = client.Unmount(logger, unmountRequest)
 			if err != nil {
 				respondWithError(logger, fmt.Sprintf("Error unmounting volume %s", unmountRequest.VolumeId), err, w)
+				return
+			}
+
+			cf_http_handlers.WriteJSONResponse(w, http.StatusOK, struct{}{})
+		}),
+
+		"create": http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			logger.Info("create")
+			defer logger.Info("create end")
+			body, err := ioutil.ReadAll(req.Body)
+			if err != nil {
+				respondWithError(logger, "Error reading create request body", err, w)
+				return
+			}
+
+			var createRequest voldriver.CreateRequest
+			if err = json.Unmarshal(body, &createRequest); err != nil {
+				respondWithError(logger, fmt.Sprintf("Error reading create request body: %#v", body), err, w)
+				return
+			}
+
+			createResponse := client.Create(logger, createRequest)
+			if createResponse.Err != "" {
+				respondWithError(logger, fmt.Sprintf("Error creating volume %s", createRequest.Name), err, w)
 				return
 			}
 

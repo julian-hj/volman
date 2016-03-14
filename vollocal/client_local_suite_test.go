@@ -26,7 +26,7 @@ var _ = SynchronizedBeforeSuite(
 		return []byte("")
 	},
 	func(pathsByte []byte) {
-		defaultPluginsDirectory = "/tmp"
+		defaultPluginsDirectory = "/tmp/persi"
 	},
 )
 

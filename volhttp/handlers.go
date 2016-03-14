@@ -41,7 +41,7 @@ func NewHandler(logger lager.Logger, client volman.Manager) (http.Handler, error
 				return
 			}
 
-			mountPoint, err := client.Mount(logger, mountRequest.DriverId, mountRequest.VolumeId, mountRequest.Config)
+			mountPoint, err := client.Mount(logger, mountRequest.DriverId, mountRequest.VolumeId, "fix me")
 			if err != nil {
 				respondWithError(logger, fmt.Sprintf("Error mounting volume %s with driver %s", mountRequest.VolumeId, mountRequest.DriverId), err, w)
 				return
@@ -67,6 +67,29 @@ func NewHandler(logger lager.Logger, client volman.Manager) (http.Handler, error
 			err = client.Unmount(logger, unmountRequest.DriverId, unmountRequest.VolumeId)
 			if err != nil {
 				respondWithError(logger, fmt.Sprintf("Error unmounting volume %s with driver %s", unmountRequest.VolumeId, unmountRequest.DriverId), err, w)
+				return
+			}
+
+			cf_http_handlers.WriteJSONResponse(w, http.StatusOK, struct{}{})
+		}),
+		"create": http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			logger.Info("create")
+			defer logger.Info("create end")
+			body, err := ioutil.ReadAll(req.Body)
+			if err != nil {
+				respondWithError(logger, "Error reading create request body", err, w)
+				return
+			}
+
+			var createRequest volman.CreateRequest
+			if err = json.Unmarshal(body, &createRequest); err != nil {
+				respondWithError(logger, fmt.Sprintf("Error reading create request body: %#v", body), err, w)
+				return
+			}
+
+			err = client.Create(logger, createRequest.DriverId, createRequest.VolumeId, createRequest.Opts)
+			if err != nil {
+				respondWithError(logger, fmt.Sprintf("Error creating volume %s with driver %s", createRequest.VolumeId, createRequest.DriverId), err, w)
 				return
 			}
 

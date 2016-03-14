@@ -2,6 +2,7 @@ package vollocal
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -76,14 +77,18 @@ func (client *localClient) Mount(logger lager.Logger, driverId string, volumeId 
 
 	var response voldriver.MountResponse
 	err := client.callDriver(logger, driverId, func(driver voldriver.Driver) error {
-		var err error
-		mountRequest := voldriver.MountRequest{VolumeId: volumeId, Config: config}
+		mountRequest := voldriver.MountRequest{Name: volumeId}
 		logger.Info(fmt.Sprintf("Calling driver %s with mount request %#v", driverId, mountRequest))
-		response, err = driver.Mount(logger, mountRequest)
+		response = driver.Mount(logger, mountRequest)
 		logger.Info(fmt.Sprintf("Response from driver.Mount was %#v", response))
-		return err
+
+		if response.Err == "" {
+			return nil
+		}
+		return errors.New(response.Err)
 	})
-	return volman.MountResponse{response.Path}, err
+
+	return volman.MountResponse{response.Mountpoint}, err
 }
 
 func (client *localClient) Unmount(logger lager.Logger, driverId string, volumeId string) error {
@@ -95,6 +100,24 @@ func (client *localClient) Unmount(logger lager.Logger, driverId string, volumeI
 	err := client.callDriver(logger, driverId, func(driver voldriver.Driver) error {
 		return driver.Unmount(logger, voldriver.UnmountRequest{VolumeId: volumeId})
 	})
+	return err
+}
+
+func (client *localClient) Create(logger lager.Logger, driverId string, volumeName string, opts map[string]interface{}) error {
+	logger = logger.Session("create")
+	logger.Info("start")
+	defer logger.Info("end")
+
+	logger.Info("creating-volume", lager.Data{"volumeName": volumeName, "driverId": driverId, "opts": opts})
+	err := client.callDriver(logger, driverId, func(driver voldriver.Driver) error {
+		response := driver.Create(logger, voldriver.CreateRequest{Name: volumeName, Opts: opts})
+
+		if response.Err == "" {
+			return nil
+		}
+		return errors.New(response.Err)
+	})
+
 	return err
 }
 

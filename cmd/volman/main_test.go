@@ -88,11 +88,14 @@ var _ = Describe("Volman", func() {
 
 				JustBeforeEach(func() {
 					client := volhttp.NewRemoteClient(fmt.Sprintf("http://0.0.0.0:%d", volmanServerPort))
-					config := "Here is some config!"
 					node := GinkgoParallelNode()
 					volumeId = "fake-volume_" + strconv.Itoa(node)
+					testLogger.Info("creating-volume", lager.Data{"volumeID": volumeId})
+					err = client.Create(testLogger, "fakedriver", volumeId, map[string]interface{}{"volume_id": volumeId})
+					Expect(err).NotTo(HaveOccurred())
+
 					testLogger.Info(fmt.Sprintf("Mounting volume: %s", volumeId))
-					mountPoint, err = client.Mount(testLogger, "fakedriver", volumeId, config)
+					mountPoint, err = client.Mount(testLogger, "fakedriver", volumeId, "")
 					Expect(err).NotTo(HaveOccurred())
 				})
 

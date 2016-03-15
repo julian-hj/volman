@@ -4,7 +4,7 @@ package volmanfakes
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/volman/voldriver"
+	"github.com/cloudfoundry-incubator/volman/voldriver.old"
 	"github.com/pivotal-golang/lager"
 )
 

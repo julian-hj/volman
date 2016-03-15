@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/volman/voldriver"
-	"github.com/cloudfoundry-incubator/volman/voldriver/driverhttp"
+	"github.com/cloudfoundry-incubator/volman/voldriver.old/driverhttp"
 )
 
 type FakeRemoteClientFactory struct {

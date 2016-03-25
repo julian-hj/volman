@@ -7,11 +7,13 @@ import (
 
 	"strings"
 
+	"path/filepath"
+
 	"github.com/cloudfoundry-incubator/volman/voldriver"
 	"github.com/pivotal-golang/lager"
 )
 
-const RootDir = "_fakedriver/"
+const RootDir = "_volumes/"
 
 type LocalDriver struct { // see voldriver.resources.go
 	volumes    map[string]*volume
@@ -46,7 +48,7 @@ func (d *LocalDriver) Mount(logger lager.Logger, mountRequest voldriver.MountReq
 		return voldriver.MountResponse{Err: fmt.Sprintf("Volume '%s' must be created before being mounted", mountRequest.Name)}
 	}
 
-	mountPath := d.mountPath(vol.volumeID)
+	mountPath := d.mountPath(logger, vol.volumeID)
 
 	logger.Info("mounting-volume", lager.Data{"id": vol.volumeID, "mountpoint": mountPath})
 	err := d.fileSystem.MkdirAll(mountPath, os.ModePerm)
@@ -153,11 +155,16 @@ func (d *LocalDriver) exists(path string) (bool, error) {
 	return true, err
 }
 
-func (d *LocalDriver) mountPath(volumeId string) string {
-	tmpDir := d.fileSystem.TempDir()
-	if !strings.HasSuffix(tmpDir, "/") {
-		tmpDir = fmt.Sprintf("%s/", tmpDir)
+func (d *LocalDriver) mountPath(logger lager.Logger, volumeId string) string {
+
+	dir, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		logger.Fatal("error getting path to executable", err)
 	}
 
-	return tmpDir + RootDir + volumeId
+	if !strings.HasSuffix(dir, "/") {
+		dir = fmt.Sprintf("%s/", dir)
+	}
+
+	return dir + RootDir + volumeId
 }

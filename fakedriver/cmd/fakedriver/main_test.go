@@ -19,6 +19,18 @@ import (
 	"github.com/tedsuo/ifrit/ginkgomon"
 )
 
+var _ = Describe("UNIX and TCP versions of the fakedriver", func() {
+
+	FakeDriverBehaviorWhenTransportIs("unix", func() (voldriver.Driver, ifrit.Runner) {
+		return driverhttp.NewRemoteUnixClient(socketPath), unixRunner
+	})
+
+	FakeDriverBehaviorWhenTransportIs("tcp", func() (voldriver.Driver, ifrit.Runner) {
+		return driverhttp.NewRemoteClient(fmt.Sprintf("http://0.0.0.0:%d", fakedriverServerPort)), runner
+	})
+
+})
+
 var FakeDriverBehaviorWhenTransportIs = func(described string, args func() (voldriver.Driver, ifrit.Runner)) {
 
 	Describe("Fake Driver Integration", func() {
@@ -102,18 +114,6 @@ var FakeDriverBehaviorWhenTransportIs = func(described string, args func() (vold
 		})
 	})
 }
-
-var _ = Describe("something", func() {
-
-	FakeDriverBehaviorWhenTransportIs("unix", func() (voldriver.Driver, ifrit.Runner) {
-		return driverhttp.NewRemoteUnixClient(socketPath), unixRunner
-	})
-
-	FakeDriverBehaviorWhenTransportIs("tcp", func() (voldriver.Driver, ifrit.Runner) {
-		return driverhttp.NewRemoteClient(fmt.Sprintf("http://0.0.0.0:%d", fakedriverServerPort)), runner
-	})
-
-})
 
 func createVolume(testLogger *lagertest.TestLogger, client voldriver.Driver, volumeName string, opts map[string]interface{}) {
 	testLogger.Info("creating-volume", lager.Data{"name": volumeName})

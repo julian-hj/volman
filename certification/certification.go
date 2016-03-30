@@ -23,7 +23,6 @@ import (
 )
 
 var CertifiyWith = func(described string, args func() (*ginkgomon.Runner, *ginkgomon.Runner, int, string, string, int)) {
-
 	Describe("Certify Volman with: "+described, func() {
 
 		var (

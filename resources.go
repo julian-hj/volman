@@ -6,15 +6,17 @@ import (
 )
 
 const (
-	ListDriversRoute = "drivers"
-	MountRoute       = "mount"
-	UnmountRoute     = "unmount"
+	ListDriversRoute     = "drivers"
+	DiscoverDriversRoute = "discover"
+	MountRoute           = "mount"
+	UnmountRoute         = "unmount"
 )
 
 var Routes = rata.Routes{
 	{Path: "/drivers", Method: "GET", Name: ListDriversRoute},
 	{Path: "/drivers/mount", Method: "POST", Name: MountRoute},
 	{Path: "/drivers/unmount", Method: "POST", Name: UnmountRoute},
+	{Path: "/drivers/discover", Method: "POST", Name: DiscoverDriversRoute},
 }
 
 type ListDriversResponse struct {

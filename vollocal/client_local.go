@@ -6,33 +6,47 @@ import (
 	"github.com/cloudfoundry-incubator/volman"
 	"github.com/cloudfoundry-incubator/volman/voldriver"
 	"github.com/pivotal-golang/lager"
+	"github.com/tedsuo/ifrit"
 )
 
 type localClient struct {
 	driverFactory DriverFactory
+	DriversReg    map[string]string
 }
 
-func NewLocalClient(driversPath string) *localClient {
+func NewLocalClient(driversPath string) (*localClient, ifrit.Runner) {
 	return NewLocalClientWithDriverFactory(NewDriverFactory(driversPath))
 }
 
-func NewLocalClientWithDriverFactory(driverFactory DriverFactory) *localClient {
-	return &localClient{driverFactory}
+func NewLocalClientWithDriverFactory(driverFactory DriverFactory) (*localClient, ifrit.Runner) {
+	driversPath := driverFactory.DriversDir()
+
+	registryRunner, err := NewRegistryRunner(driversPath)
+	if err != nil {
+		return &localClient{}, nil
+	}
+
+	return &localClient{driverFactory, map[string]string{}}, registryRunner
 }
+
+func (client *localClient) SetRegistry() {
+	client.DriversReg, _ = SetDrivers(client.driverFactory.DriversDir())
+}
+func (client *localClient) GetRegistry() map[string]string { return client.DriversReg }
 
 func (client *localClient) ListDrivers(logger lager.Logger) (volman.ListDriversResponse, error) {
 	logger = logger.Session("list-drivers")
 	logger.Debug("start")
 	defer logger.Debug("end")
 
-	drivers, err := client.driverFactory.Discover(logger)
-	if err != nil {
-		return volman.ListDriversResponse{}, err
-	}
 	logger.Debug("listing-drivers")
 	var infoResponses []voldriver.InfoResponse
-	for driverName, driverFileName := range drivers {
-		logger.Debug("driver-name", lager.Data{"drivername": driverName, "driverfilename": driverFileName})
+
+	if client.DriversReg == nil {
+		return volman.ListDriversResponse{}, nil
+	}
+
+	for driverName, driverFileName := range client.DriversReg {
 		infoResponses = append(infoResponses, voldriver.InfoResponse{driverName, driverFileName})
 	}
 

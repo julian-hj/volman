@@ -10,6 +10,12 @@ import (
 )
 
 type FakeDriverFactory struct {
+	DriversDirStub        func() string
+	driversDirMutex       sync.RWMutex
+	driversDirArgsForCall []struct{}
+	driversDirReturns     struct {
+		result1 string
+	}
 	DiscoverStub        func(logger lager.Logger) (map[string]string, error)
 	discoverMutex       sync.RWMutex
 	discoverArgsForCall []struct {
@@ -29,6 +35,30 @@ type FakeDriverFactory struct {
 		result1 voldriver.Driver
 		result2 error
 	}
+}
+
+func (fake *FakeDriverFactory) DriversDir() string {
+	fake.driversDirMutex.Lock()
+	fake.driversDirArgsForCall = append(fake.driversDirArgsForCall, struct{}{})
+	fake.driversDirMutex.Unlock()
+	if fake.DriversDirStub != nil {
+		return fake.DriversDirStub()
+	} else {
+		return fake.driversDirReturns.result1
+	}
+}
+
+func (fake *FakeDriverFactory) DriversDirCallCount() int {
+	fake.driversDirMutex.RLock()
+	defer fake.driversDirMutex.RUnlock()
+	return len(fake.driversDirArgsForCall)
+}
+
+func (fake *FakeDriverFactory) DriversDirReturns(result1 string) {
+	fake.DriversDirStub = nil
+	fake.driversDirReturns = struct {
+		result1 string
+	}{result1}
 }
 
 func (fake *FakeDriverFactory) Discover(logger lager.Logger) (map[string]string, error) {

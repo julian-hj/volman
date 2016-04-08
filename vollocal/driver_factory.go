@@ -17,14 +17,16 @@ import (
 //go:generate counterfeiter -o ../volmanfakes/fake_driver_factory.go . DriverFactory
 
 type DriverFactory interface {
+	DriversDir() string
 	Discover(logger lager.Logger) (map[string]string, error)
 	Driver(logger lager.Logger, driverId string) (voldriver.Driver, error)
 }
 
 type realDriverFactory struct {
-	DriversPath string
-	Factory     driverhttp.RemoteClientFactory
-	useOs       system.Os
+	DriversPath     string
+	Factory         driverhttp.RemoteClientFactory
+	useOs           system.Os
+	DriversRegistry map[string]string
 }
 
 func NewDriverFactory(driversPath string) DriverFactory {
@@ -33,12 +35,15 @@ func NewDriverFactory(driversPath string) DriverFactory {
 }
 
 func NewDriverFactoryWithRemoteClientFactory(driversPath string, remoteClientFactory driverhttp.RemoteClientFactory) DriverFactory {
-	return &realDriverFactory{driversPath, remoteClientFactory, &system.SystemOs{}}
+	return &realDriverFactory{driversPath, remoteClientFactory, &system.SystemOs{}, nil}
 }
 
 func NewDriverFactoryWithOs(driversPath string, useOs system.Os) DriverFactory {
 	remoteClientFactory := driverhttp.NewRemoteClientFactory()
-	return &realDriverFactory{driversPath, remoteClientFactory, useOs}
+	return &realDriverFactory{driversPath, remoteClientFactory, useOs, nil}
+}
+func (r *realDriverFactory) DriversDir() string {
+	return r.DriversPath
 }
 
 func (r *realDriverFactory) Discover(logger lager.Logger) (map[string]string, error) {
@@ -51,7 +56,7 @@ func (r *realDriverFactory) Discover(logger lager.Logger) (map[string]string, er
 	for _, spec_type := range spec_types {
 		matchingDriverSpecs, err := r.getMatchingDriverSpecs(logger, spec_type)
 		if err != nil { // untestable on linux, does glob work differently on windows???
-			return nil, fmt.Errorf("Volman configured with an invalid driver path '%s', error occured list files (%s)", r.DriversPath, err.Error())
+			return map[string]string{}, fmt.Errorf("Volman configured with an invalid driver path '%s', error occured list files (%s)", r.DriversPath, err.Error())
 		}
 		logger.Debug("driver-specs", lager.Data{"drivers": matchingDriverSpecs})
 		endpoints = r.insertIfNotFound(logger, endpoints, matchingDriverSpecs)
@@ -79,13 +84,13 @@ func (r *realDriverFactory) Driver(logger lager.Logger, driverId string) (voldri
 	logger = logger.Session("driver-factory")
 	logger.Info("start")
 	defer logger.Info("end")
-	drivers, err := r.Discover(logger)
+	endpoints, err := r.Discover(logger)
 
 	if err != nil { //untestable as it depends on another untestable error: discovery error
 		return nil, fmt.Errorf("Volman cannot find any drivers", err.Error())
 	}
 	var driver voldriver.Driver
-	for driverName, driverFileName := range drivers {
+	for driverName, driverFileName := range endpoints {
 		if driverName == driverId {
 			var address string
 			if strings.Contains(driverFileName, ".") {

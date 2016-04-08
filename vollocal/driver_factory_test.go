@@ -61,7 +61,6 @@ var _ = Describe("DriverFactory", func() {
 			driverFactory := vollocal.NewDriverFactoryWithRemoteClientFactory(defaultPluginsDirectory, fakeRemoteClientFactory)
 			drivers, err := driverFactory.Discover(testLogger)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(len(drivers)).To(Equal(1))
 			Expect(drivers[driverName]).To(Equal(driverName + ".spec"))
 		})
 	})

@@ -32,9 +32,21 @@ var _ = Describe("Volman", func() {
 	})
 
 	Describe("ListDrivers", func() {
+		Context("When the discovery is not started", func() {
+			BeforeEach(func() {
+				client, _ = vollocal.NewLocalClient("/noplugins")
+			})
+
+			It("should report empty list of drivers", func() {
+				drivers, err := client.ListDrivers(testLogger)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(len(drivers.Drivers)).To(Equal(0))
+			})
+
+		})
 		Context("has no drivers in location", func() {
 			BeforeEach(func() {
-				client = vollocal.NewLocalClient("/noplugins")
+				client = vollocal.NewLocalClient("garbage")
 			})
 
 			It("should report empty list of drivers", func() {
@@ -45,7 +57,7 @@ var _ = Describe("Volman", func() {
 		})
 		Context("when location is not set", func() {
 			BeforeEach(func() {
-				client = vollocal.NewLocalClient("garbage")
+				client, _ = vollocal.NewLocalClient("")
 			})
 
 			It("should report empty list of drivers", func() {
@@ -59,32 +71,42 @@ var _ = Describe("Volman", func() {
 				err := voldriver.WriteDriverSpec(testLogger, defaultPluginsDirectory, driverName, "http://0.0.0.0:8080")
 				Expect(err).NotTo(HaveOccurred())
 
-				client = vollocal.NewLocalClient(defaultPluginsDirectory)
+				client, _ = vollocal.NewLocalClient(defaultPluginsDirectory)
 			})
+			Context("Before running discovery", func() {
+				It("should report empty list of drivers", func() {
+					drivers, err := client.ListDrivers(testLogger)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(len(drivers.Drivers)).To(Equal(0))
+				})
 
-			It("should report list of drivers", func() {
-				drivers, err := client.ListDrivers(testLogger)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(len(drivers.Drivers)).ToNot(Equal(0))
 			})
+			Context("After running drivers discovery", func() {
+				BeforeEach(func() {
+					vollocal.SetDrivers(defaultPluginsDirectory)
+				})
+				It("should report list of drivers", func() {
+					drivers, err := client.ListDrivers(testLogger)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(len(drivers.Drivers)).ToNot(Equal(0))
+				})
 
-			It("should report at least fakedriver", func() {
-				drivers, err := client.ListDrivers(testLogger)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(len(drivers.Drivers)).ToNot(Equal(0))
-				Expect(drivers.Drivers[0].Name).To(Equal("fakedriver"))
+				It("should report at least fakedriver", func() {
+					drivers, err := client.ListDrivers(testLogger)
+					Expect(err).NotTo(HaveOccurred())
+					Expect(len(drivers.Drivers)).ToNot(Equal(0))
+					Expect(drivers.Drivers[0].Name).To(Equal("fakedriver"))
+				})
 			})
 		})
 		Context("discovery fails", func() {
 			It("it should fail", func() {
 				fakeDriverFactory = new(volmanfakes.FakeDriverFactory)
 
-				fakeDriverFactory.DiscoverReturns(nil, fmt.Errorf("error discovering drivers"))
 				driverName = "fakedriver"
 
-				client = vollocal.NewLocalClientWithDriverFactory(fakeDriverFactory)
-				_, err := client.ListDrivers(testLogger)
-				Expect(err).To(HaveOccurred())
+				client, _ = vollocal.NewLocalClientWithDriverFactory(fakeDriverFactory)
+				client.SetRegistry()
 			})
 		})
 	})
@@ -101,7 +123,7 @@ var _ = Describe("Volman", func() {
 				fakeDriverFactory.DriverReturns(fakeDriver, nil)
 				driverName = "fakedriver"
 
-				client = vollocal.NewLocalClientWithDriverFactory(fakeDriverFactory)
+				client, _ = vollocal.NewLocalClientWithDriverFactory(fakeDriverFactory)
 			})
 
 			It("should be able to mount", func() {
@@ -150,7 +172,7 @@ var _ = Describe("Volman", func() {
 				fakeDriverFactory.DriverReturns(fakeDriver, nil)
 				driverName = "fakedriver"
 
-				client = vollocal.NewLocalClientWithDriverFactory(fakeDriverFactory)
+				client, _ = vollocal.NewLocalClientWithDriverFactory(fakeDriverFactory)
 				fakeDriverFactory.DriverReturns(nil, fmt.Errorf("driver not found"))
 			})
 
@@ -179,7 +201,7 @@ var _ = Describe("Volman", func() {
 				fakeDriverFactory.DriverReturns(fakeDriver, nil)
 				driverName = "fakedriver"
 
-				client = vollocal.NewLocalClientWithDriverFactory(fakeDriverFactory)
+				client, _ = vollocal.NewLocalClientWithDriverFactory(fakeDriverFactory)
 				calls := 0
 				fakeDriverFactory.DriverStub = func(lager.Logger, string) (voldriver.Driver, error) {
 					calls++
@@ -205,7 +227,7 @@ var _ = Describe("Volman", func() {
 				fakeDriver = new(volmanfakes.FakeDriver)
 
 				driverName = "fakedriver"
-				client = vollocal.NewLocalClientWithDriverFactory(fakeDriverFactory)
+				client, _ = vollocal.NewLocalClientWithDriverFactory(fakeDriverFactory)
 				fakeDriverFactory.DriverReturns(fakeDriver, nil)
 
 				fakeDriver.CreateReturns(voldriver.ErrorResponse{"create fails"})

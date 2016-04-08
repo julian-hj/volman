@@ -25,7 +25,29 @@ func NewRemoteClient(volmanURL string) *remoteClient {
 		reqGen:     rata.NewRequestGenerator(volmanURL, volman.Routes),
 	}
 }
+func (r *remoteClient) SetDrivers(logger lager.Logger) error {
+	logger = logger.Session("set-drivers")
+	logger.Info("start")
+	defer logger.Info("end")
 
+	request, err := r.reqGen.CreateRequest(volman.DiscoverDriversRoute, nil, nil)
+	if err != nil {
+		return r.clientError(logger, err, fmt.Sprintf("Error creating request to %s", volman.ListDriversRoute))
+	}
+
+	response, err := r.HttpClient.Do(request)
+	if err != nil {
+		return r.clientError(logger, err, "Error in drivers discovery remote call")
+	}
+	var drivers volman.ListDriversResponse
+	err = unmarshallJSON(logger, response.Body, &drivers)
+
+	if err != nil {
+		return r.clientError(logger, err, "Error in Parsing JSON Response of discover Drivers")
+	}
+
+	return err
+}
 func (r *remoteClient) ListDrivers(logger lager.Logger) (volman.ListDriversResponse, error) {
 	logger = logger.Session("list-drivers")
 	logger.Debug("start")

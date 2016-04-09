@@ -2,46 +2,57 @@ package vollocal
 
 import (
 	"os"
+	"time"
 
-	"github.com/cloudfoundry-incubator/cf-lager"
+	"github.com/cloudfoundry-incubator/volman"
+	"github.com/cloudfoundry-incubator/volman/voldriver"
 	"github.com/onsi/ginkgo"
+	"github.com/pivotal-golang/clock"
+	"github.com/pivotal-golang/lager"
 	"github.com/tedsuo/ifrit"
 )
 
-//go:generate counterfeiter -o ../volmanfakes/fake_driver_factory.go . DriverFactory
-
-type Registry interface {
-	SetDrivers(driversPath string) (map[string]string, error)
-}
-
 type DriversRegistry struct {
-	DriversPath string
+	logger         lager.Logger
+	client         volman.Manager
+	driversFactory DriverFactory
+	scanInterval   time.Duration
+	clock          clock.Clock
+
+	DriversMap map[string]voldriver.Driver
 }
 
-func NewRegistry(driversPath string) *DriversRegistry {
+func NewRegistry(logger lager.Logger, driverFactory DriverFactory, scanInterval time.Duration, clock clock.Clock) *DriversRegistry {
 	return &DriversRegistry{
-		DriversPath: driversPath,
+		logger:         logger,
+		driversFactory: driverFactory,
+		scanInterval:   scanInterval,
+		clock:          clock,
+
+		DriversMap: map[string]voldriver.Driver{},
 	}
 }
 
-func NewRegistryRunner(driversPath string) (ifrit.Runner, error) {
-	logger, _ := cf_lager.New("DriversRegistry")
-	logger.Info("set-drivers-start")
-	defer logger.Info("set-drivers-end")
+func (r *DriversRegistry) RegistryRunner(logger lager.Logger) (ifrit.Runner, error) {
+	logger.Info("start")
+	defer logger.Info("end")
+
 	return ifrit.RunFunc(func(signals <-chan os.Signal, ready chan<- struct{}) error {
 		defer ginkgo.GinkgoRecover()
 
-		done := make(chan struct{})
-		go func() {
-			defer ginkgo.GinkgoRecover()
+		interval := r.scanInterval
+		timer := r.clock.NewTimer(interval)
+		defer timer.Stop()
+		for {
+			select {
+			case <-timer.C():
 
-			SetDrivers(driversPath)
-			close(done)
-		}()
-		close(ready)
-
-		select {
-		case <-signals:
+			case signal := <-signals:
+				logger.Info("received-signal", lager.Data{"signal": signal.String()})
+			}
+			r.SetDrivers(logger)
+			close(ready)
+			timer.Reset(interval)
 		}
 		return nil
 	}), nil
@@ -49,15 +60,28 @@ func NewRegistryRunner(driversPath string) (ifrit.Runner, error) {
 	return nil, nil
 }
 
-func SetDrivers(driversPath string) (map[string]string, error) {
-	logger, _ := cf_lager.New("SetDriverRegistry")
+func (r *DriversRegistry) SetDrivers(logger lager.Logger) {
+	logger = logger.Session("SetDrivers")
 	logger.Info("start")
 	defer logger.Info("end")
-	driverFactory := NewDriverFactory(driversPath)
-	reg, err := driverFactory.Discover(logger)
-	if err != nil {
 
-		return map[string]string{}, err
+	startime := r.clock.Now()
+	logger.Info("set-drivers-startime", lager.Data{"time": startime})
+
+	reg, err := r.driversFactory.Discover(logger)
+	if err != nil {
+		r.DriversMap = map[string]voldriver.Driver{}
 	}
-	return reg, nil
+
+	endtime := r.clock.Now()
+	logger.Info("set-drivers-endtime", lager.Data{"time": endtime})
+
+	var driver voldriver.Driver
+	for driverName, _ := range reg {
+		driver, err = r.driversFactory.Driver(logger, driverName)
+		if err != nil {
+			r.DriversMap = map[string]voldriver.Driver{}
+		}
+		r.DriversMap[driverName] = driver
+	}
 }

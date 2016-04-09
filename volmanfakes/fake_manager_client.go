@@ -9,15 +9,6 @@ import (
 )
 
 type FakeManager struct {
-	SetRegistryStub        func()
-	setRegistryMutex       sync.RWMutex
-	setRegistryArgsForCall []struct{}
-	GetRegistryStub        func() map[string]string
-	getRegistryMutex       sync.RWMutex
-	getRegistryArgsForCall []struct{}
-	getRegistryReturns     struct {
-		result1 map[string]string
-	}
 	ListDriversStub        func(logger lager.Logger) (volman.ListDriversResponse, error)
 	listDriversMutex       sync.RWMutex
 	listDriversArgsForCall []struct {
@@ -49,45 +40,6 @@ type FakeManager struct {
 	unmountReturns struct {
 		result1 error
 	}
-}
-
-func (fake *FakeManager) SetRegistry() {
-	fake.setRegistryMutex.Lock()
-	fake.setRegistryArgsForCall = append(fake.setRegistryArgsForCall, struct{}{})
-	fake.setRegistryMutex.Unlock()
-	if fake.SetRegistryStub != nil {
-		fake.SetRegistryStub()
-	}
-}
-
-func (fake *FakeManager) SetRegistryCallCount() int {
-	fake.setRegistryMutex.RLock()
-	defer fake.setRegistryMutex.RUnlock()
-	return len(fake.setRegistryArgsForCall)
-}
-
-func (fake *FakeManager) GetRegistry() map[string]string {
-	fake.getRegistryMutex.Lock()
-	fake.getRegistryArgsForCall = append(fake.getRegistryArgsForCall, struct{}{})
-	fake.getRegistryMutex.Unlock()
-	if fake.GetRegistryStub != nil {
-		return fake.GetRegistryStub()
-	} else {
-		return fake.getRegistryReturns.result1
-	}
-}
-
-func (fake *FakeManager) GetRegistryCallCount() int {
-	fake.getRegistryMutex.RLock()
-	defer fake.getRegistryMutex.RUnlock()
-	return len(fake.getRegistryArgsForCall)
-}
-
-func (fake *FakeManager) GetRegistryReturns(result1 map[string]string) {
-	fake.GetRegistryStub = nil
-	fake.getRegistryReturns = struct {
-		result1 map[string]string
-	}{result1}
 }
 
 func (fake *FakeManager) ListDrivers(logger lager.Logger) (volman.ListDriversResponse, error) {

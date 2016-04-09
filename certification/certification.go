@@ -84,7 +84,6 @@ var CertifiyWith = func(described string, args func() (*ginkgomon.Runner, *ginkg
 
 				It("should return list of drivers", func() {
 					client := volhttp.NewRemoteClient(fmt.Sprintf("http://0.0.0.0:%d", volmanServerPort))
-					client.SetDrivers(testLogger)
 					drivers, err := client.ListDrivers(testLogger)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(len(drivers.Drivers)).To(Equal(1))

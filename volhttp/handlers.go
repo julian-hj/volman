@@ -23,16 +23,6 @@ func NewHandler(logger lager.Logger, client volman.Manager) (http.Handler, error
 	defer logger.Info("end")
 
 	var handlers = rata.Handlers{
-		"discover": http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			serverlogger := logger
-			logger = logger.Session("drivers")
-			logger.Info("start")
-			defer logger.Info("end")
-			defer func() { logger = serverlogger }()
-
-			client.SetDrivers(logger)
-			cf_http_handlers.WriteJSONResponse(w, http.StatusOK, nil)
-		}),
 
 		"drivers": http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 			serverlogger := logger

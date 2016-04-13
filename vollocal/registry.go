@@ -1,87 +1,129 @@
 package vollocal
 
 import (
-	"os"
 	"time"
 
-	"github.com/cloudfoundry-incubator/volman"
+	"sync"
+
+	"os"
+
 	"github.com/cloudfoundry-incubator/volman/voldriver"
-	"github.com/onsi/ginkgo"
 	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
-	"github.com/tedsuo/ifrit"
 )
 
-type DriversRegistry struct {
-	logger         lager.Logger
-	client         volman.Manager
-	driversFactory DriverFactory
-	scanInterval   time.Duration
-	clock          clock.Clock
-
-	DriversMap map[string]voldriver.Driver
+type driverMap struct {
+	sync.RWMutex
+	drivers map[string]voldriver.Driver
 }
 
-func NewRegistry(logger lager.Logger, driverFactory DriverFactory, scanInterval time.Duration, clock clock.Clock) *DriversRegistry {
-	return &DriversRegistry{
-		logger:         logger,
-		driversFactory: driverFactory,
-		scanInterval:   scanInterval,
-		clock:          clock,
+func (d *driverMap) Driver(id string) (voldriver.Driver, bool) {
+	d.RLock()
+	defer d.RUnlock()
+	_, ok := d.drivers[id]
+	if !ok {
+		return nil, false
+	}
 
-		DriversMap: map[string]voldriver.Driver{},
+	return d.drivers[id], true
+
+}
+func (d *driverMap) Drivers() map[string]voldriver.Driver {
+	d.RLock()
+	defer d.RUnlock()
+
+	return d.drivers
+}
+func (d *driverMap) Set(drivers map[string]voldriver.Driver) {
+	d.Lock()
+	defer d.Unlock()
+
+	d.drivers = drivers
+}
+
+func (d *driverMap) Keys() []string {
+	d.Lock()
+	defer d.Unlock()
+
+	var keys []string
+	for k := range d.drivers {
+		keys = append(keys, k)
+	}
+
+	return keys
+}
+
+type DriverSyncer struct {
+	sync.RWMutex
+	logger        lager.Logger
+	driverFactory DriverFactory
+	scanInterval  time.Duration
+	clock         clock.Clock
+
+	drivers driverMap
+}
+
+func NewDriverSyncer(logger lager.Logger, driverFactory DriverFactory, scanInterval time.Duration, clock clock.Clock) *DriverSyncer {
+	return &DriverSyncer{
+		logger:        logger,
+		driverFactory: driverFactory,
+		scanInterval:  scanInterval,
+		clock:         clock,
+
+		drivers: driverMap{},
 	}
 }
 
-func (r *DriversRegistry) RegistryRunner(logger lager.Logger) (ifrit.Runner, error) {
-	logger.Info("start")
-	defer logger.Info("end")
+func (d *DriverSyncer) Drivers() map[string]voldriver.Driver {
+	d.RLock()
+	defer d.RUnlock()
 
-	return ifrit.RunFunc(func(signals <-chan os.Signal, ready chan<- struct{}) error {
-		defer ginkgo.GinkgoRecover()
-
-		interval := r.scanInterval
-		timer := r.clock.NewTimer(interval)
-		defer timer.Stop()
-		for {
-			select {
-			case <-timer.C():
-
-			case signal := <-signals:
-				logger.Info("received-signal", lager.Data{"signal": signal.String()})
-			}
-			r.SetDrivers(logger)
-			close(ready)
-			timer.Reset(interval)
-		}
-		return nil
-	}), nil
-
-	return nil, nil
+	return d.drivers.Drivers()
 }
+func (d *DriverSyncer) Driver(driverId string) (voldriver.Driver, bool) {
+	d.RLock()
+	defer d.RUnlock()
 
-func (r *DriversRegistry) SetDrivers(logger lager.Logger) {
-	logger = logger.Session("SetDrivers")
+	return d.drivers.Driver(driverId)
+}
+func (r *DriverSyncer) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
+	logger := r.logger.Session("sync-drivers")
 	logger.Info("start")
 	defer logger.Info("end")
 
-	startime := r.clock.Now()
-	logger.Info("set-drivers-startime", lager.Data{"time": startime})
+	timer := r.clock.NewTimer(r.scanInterval)
+	defer timer.Stop()
 
-	reg, err := r.driversFactory.Discover(logger)
+	drivers, err := r.driverFactory.Discover(logger)
 	if err != nil {
-		r.DriversMap = map[string]voldriver.Driver{}
+		return err
 	}
 
-	endtime := r.clock.Now()
-	logger.Info("set-drivers-endtime", lager.Data{"time": endtime})
+	r.drivers.Set(drivers)
+	close(ready)
 
-	var driver voldriver.Driver
-	for driverName, _ := range reg {
-		driver, err = r.driversFactory.Driver(logger, driverName)
-		if err != nil {
-			r.DriversMap = map[string]voldriver.Driver{}
+	setDriverCh := make(chan error, 1)
+
+	for {
+		select {
+
+		case <-setDriverCh:
+			timer.Reset(r.scanInterval)
+
+		case <-timer.C():
+			go func() {
+				drivers, err := r.driverFactory.Discover(logger)
+				if err != nil {
+					setDriverCh <- err
+					return
+				}
+				r.drivers.Set(drivers)
+				setDriverCh <- nil
+			}()
+
+		case signal := <-signals:
+			logger.Info("received-signal", lager.Data{"signal": signal.String()})
+			return nil
 		}
-		r.DriversMap[driverName] = driver
 	}
 }

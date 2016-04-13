@@ -3,13 +3,11 @@ package main
 import (
 	"flag"
 	"os"
-	"time"
 
 	cf_debug_server "github.com/cloudfoundry-incubator/cf-debug-server"
 	cf_lager "github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/volman/volhttp"
 	"github.com/cloudfoundry-incubator/volman/vollocal"
-	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/grouper"
@@ -72,19 +70,16 @@ func createVolmanServer(logger lager.Logger, atAddress string, driversPath strin
 	if driversPath == "" {
 		panic("'-driversPath' must be provided")
 	}
-	driverFactory := vollocal.NewDriverFactory(driversPath)
-	scanInterval := 30 * time.Second
-	clock := clock.NewClock()
-	registry := vollocal.NewRegistry(logger, driverFactory, scanInterval, clock)
 
-	client, runner := vollocal.NewLocalClient(driverFactory, *registry)
-
-	proc := ifrit.Invoke(runner)
-	logger.Info("process-for-the-registry-runner", lager.Data{"process": proc})
+	client, runner := vollocal.NewLocalClient(driversPath)
 
 	handler, err := volhttp.NewHandler(logger, client)
 	exitOnFailure(logger, err)
-	return http_server.New(atAddress, handler)
+
+	return grouper.NewOrdered(os.Interrupt, grouper.Members{
+		{"driver-syncer", runner},
+		{"http-server", http_server.New(atAddress, handler)},
+	})
 }
 
 func logger() (lager.Logger, *lager.ReconfigurableSink) {

@@ -15,22 +15,17 @@ import (
 )
 
 type localClient struct {
-	//	DriverFactory DriverFactory
-	//driversPath string
 	Registry *DriverSyncer
 }
 
-func NewLocalClient(driversPath string) (*localClient, ifrit.Runner) {
+func NewLocalClient(logger lager.Logger, driversPath string) (*localClient, ifrit.Runner) {
 	driverFactory := NewDriverFactory(driversPath)
-	return NewLocalClientWithDriverFactory(driversPath, driverFactory)
+	return NewLocalClientWithDriverFactory(logger, driversPath, driverFactory)
 }
 
-func NewLocalClientWithDriverFactory(driversPath string, driverFactory DriverFactory) (*localClient, ifrit.Runner) {
+func NewLocalClientWithDriverFactory(logger lager.Logger, driversPath string, driverFactory DriverFactory) (*localClient, ifrit.Runner) {
 	cf_lager.AddFlags(flag.NewFlagSet("", flag.PanicOnError))
 	flag.Parse()
-
-	logger, _ := cf_lager.New("create-client") //ignore reconfigurable sync
-	logger = logger.Session("create")
 
 	scanInterval := 30 * time.Second
 	clock := clock.NewClock()

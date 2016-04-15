@@ -16,7 +16,7 @@ import (
 	"github.com/tedsuo/ifrit/ginkgomon"
 )
 
-var _ = Describe("Registry", func() {
+var _ = Describe("Driver Syncer", func() {
 	var (
 		logger *lagertest.TestLogger
 
@@ -31,7 +31,8 @@ var _ = Describe("Registry", func() {
 
 	BeforeEach(func() {
 
-		logger = lagertest.NewTestLogger("registry-test")
+		logger = lagertest.NewTestLogger("driver-syncer-test")
+
 		fakeClock = fakeclock.NewFakeClock(time.Unix(123, 456))
 		fakeDriverFactory = new(volmanfakes.FakeDriverFactory)
 
@@ -59,8 +60,6 @@ var _ = Describe("Registry", func() {
 				fakeDriver := new(volmanfakes.FakeDriver)
 				fakeDriverFactory.DiscoverReturns(map[string]voldriver.Driver{"fakedriver": fakeDriver}, nil)
 
-				fakeDriverFactory.DriverReturns(fakeDriver, nil)
-
 				syncer = vollocal.NewDriverSyncer(logger, fakeDriverFactory, scanInterval, fakeClock)
 
 				process = ginkgomon.Invoke(syncer)
@@ -75,7 +74,22 @@ var _ = Describe("Registry", func() {
 				Expect(len(drivers)).To(Equal(1))
 				Expect(fakeDriverFactory.DiscoverCallCount()).To(Equal(1))
 			})
+
+			Context("when drivers are added", func() {
+
+				BeforeEach(func() {
+					fakeDriver := new(volmanfakes.FakeDriver)
+					fakeDriverFactory.DiscoverReturns(map[string]voldriver.Driver{"anotherfakedriver": fakeDriver, "fakedriver": fakeDriver}, nil)
+
+				})
+
+				It("should find them!", func() {
+					fakeClock.Increment(scanInterval * 2)
+
+					Eventually(syncer.Drivers).Should(HaveLen(2))
+					Expect(fakeDriverFactory.DiscoverCallCount()).To(Equal(2))
+				})
+			})
 		})
 	})
-
 })

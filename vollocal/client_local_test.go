@@ -31,7 +31,6 @@ var _ = Describe("Volman", func() {
 
 		scanInterval time.Duration
 
-		//registry                *vollocal.DriverSyncer
 		validDriverInfoResponse io.ReadCloser
 
 		runner  ifrit.Runner
@@ -44,8 +43,6 @@ var _ = Describe("Volman", func() {
 
 		scanInterval = 10 * time.Second
 
-		//registry = vollocal.NewDriverSyncer(logger, fakeDriverFactory, scanInterval, fakeClock)
-
 		validDriverInfoResponse = stringCloser{bytes.NewBufferString("{\"Name\":\"fakedriver\",\"Path\":\"somePath\"}")}
 	})
 
@@ -53,7 +50,7 @@ var _ = Describe("Volman", func() {
 		Context("", func() {
 
 			BeforeEach(func() {
-				client, runner = vollocal.NewLocalClientWithDriverFactory(defaultPluginsDirectory, fakeDriverFactory)
+				client, runner = vollocal.NewLocalClientWithDriverFactory(logger, defaultPluginsDirectory, fakeDriverFactory)
 				process = ginkgomon.Invoke(runner)
 			})
 
@@ -88,7 +85,7 @@ var _ = Describe("Volman", func() {
 				err := voldriver.WriteDriverSpec(logger, defaultPluginsDirectory, "fakedriver", "http://0.0.0.0:8080")
 				Expect(err).NotTo(HaveOccurred())
 
-				client, runner = vollocal.NewLocalClientWithDriverFactory(defaultPluginsDirectory, fakeDriverFactory)
+				client, runner = vollocal.NewLocalClientWithDriverFactory(logger, defaultPluginsDirectory, fakeDriverFactory)
 			})
 
 			JustBeforeEach(func() {
@@ -150,7 +147,7 @@ var _ = Describe("Volman", func() {
 				err := voldriver.WriteDriverSpec(logger, defaultPluginsDirectory, "fakedriver", fmt.Sprintf("http://0.0.0.0:%d", localDriverServerPort))
 				Expect(err).NotTo(HaveOccurred())
 
-				client, runner = vollocal.NewLocalClientWithDriverFactory(defaultPluginsDirectory, fakeDriverFactory)
+				client, runner = vollocal.NewLocalClientWithDriverFactory(logger, defaultPluginsDirectory, fakeDriverFactory)
 				process = ginkgomon.Invoke(runner)
 			})
 
@@ -203,7 +200,7 @@ var _ = Describe("Volman", func() {
 				fakeDriverFactory.DriverReturns(fakeDriver, nil)
 				fakeDriverFactory.DriverReturns(nil, fmt.Errorf("driver not found"))
 
-				client, runner = vollocal.NewLocalClientWithDriverFactory(defaultPluginsDirectory, fakeDriverFactory)
+				client, runner = vollocal.NewLocalClientWithDriverFactory(logger, defaultPluginsDirectory, fakeDriverFactory)
 				process = ginkgomon.Invoke(runner)
 			})
 
@@ -233,7 +230,7 @@ var _ = Describe("Volman", func() {
 				fakeDriver.MountReturns(mountReturn)
 				fakeDriverFactory.DriverReturns(fakeDriver, nil)
 
-				client, runner = vollocal.NewLocalClientWithDriverFactory(defaultPluginsDirectory, fakeDriverFactory)
+				client, runner = vollocal.NewLocalClientWithDriverFactory(logger, defaultPluginsDirectory, fakeDriverFactory)
 				process = ginkgomon.Invoke(runner)
 
 				calls := 0
@@ -267,7 +264,7 @@ var _ = Describe("Volman", func() {
 
 				fakeDriver.CreateReturns(voldriver.ErrorResponse{"create fails"})
 
-				client, runner = vollocal.NewLocalClientWithDriverFactory(defaultPluginsDirectory, fakeDriverFactory)
+				client, runner = vollocal.NewLocalClientWithDriverFactory(logger, defaultPluginsDirectory, fakeDriverFactory)
 				process = ginkgomon.Invoke(runner)
 			})
 

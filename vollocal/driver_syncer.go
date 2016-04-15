@@ -28,12 +28,14 @@ func (d *driverMap) Driver(id string) (voldriver.Driver, bool) {
 	return d.drivers[id], true
 
 }
+
 func (d *driverMap) Drivers() map[string]voldriver.Driver {
 	d.RLock()
 	defer d.RUnlock()
 
 	return d.drivers
 }
+
 func (d *driverMap) Set(drivers map[string]voldriver.Driver) {
 	d.Lock()
 	defer d.Unlock()
@@ -80,12 +82,14 @@ func (d *DriverSyncer) Drivers() map[string]voldriver.Driver {
 
 	return d.drivers.Drivers()
 }
+
 func (d *DriverSyncer) Driver(driverId string) (voldriver.Driver, bool) {
 	d.RLock()
 	defer d.RUnlock()
 
 	return d.drivers.Driver(driverId)
 }
+
 func (r *DriverSyncer) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	logger := r.logger.Session("sync-drivers")
 	logger.Info("start")
@@ -100,6 +104,7 @@ func (r *DriverSyncer) Run(signals <-chan os.Signal, ready chan<- struct{}) erro
 	}
 
 	r.drivers.Set(drivers)
+
 	close(ready)
 
 	setDriverCh := make(chan error, 1)
@@ -111,15 +116,14 @@ func (r *DriverSyncer) Run(signals <-chan os.Signal, ready chan<- struct{}) erro
 			timer.Reset(r.scanInterval)
 
 		case <-timer.C():
-			go func() {
-				drivers, err := r.driverFactory.Discover(logger)
-				if err != nil {
-					setDriverCh <- err
-					return
-				}
-				r.drivers.Set(drivers)
-				setDriverCh <- nil
-			}()
+			drivers, err := r.driverFactory.Discover(logger)
+			if err != nil {
+				setDriverCh <- err
+				continue
+			}
+
+			r.drivers.Set(drivers)
+			setDriverCh <- nil
 
 		case signal := <-signals:
 			logger.Info("received-signal", lager.Data{"signal": signal.String()})

@@ -37,10 +37,8 @@ func main() {
 	withLogger.Info("started")
 	defer withLogger.Info("ends")
 
-	volmanServer := createVolmanServer(withLogger, *atAddress, *driversPath)
-	servers := grouper.Members{
-		{"volman-server", volmanServer},
-	}
+	servers := createVolmanServer(withLogger, *atAddress, *driversPath)
+
 	if dbgAddr := cf_debug_server.DebugAddress(flag.CommandLine); dbgAddr != "" {
 		servers = append(grouper.Members{
 			{"debug-server", cf_debug_server.Runner(dbgAddr, logTap)},
@@ -66,20 +64,20 @@ func processRunnerFor(servers grouper.Members) ifrit.Runner {
 	return sigmon.New(grouper.NewOrdered(os.Interrupt, servers))
 }
 
-func createVolmanServer(logger lager.Logger, atAddress string, driversPath string) ifrit.Runner {
+func createVolmanServer(logger lager.Logger, atAddress string, driversPath string) grouper.Members {
 	if driversPath == "" {
 		panic("'-driversPath' must be provided")
 	}
 
-	client, runner := vollocal.NewLocalClient(driversPath)
+	client, runner := vollocal.NewLocalClient(logger, driversPath)
 
 	handler, err := volhttp.NewHandler(logger, client)
 	exitOnFailure(logger, err)
 
-	return grouper.NewOrdered(os.Interrupt, grouper.Members{
+	return grouper.Members{
 		{"driver-syncer", runner},
 		{"http-server", http_server.New(atAddress, handler)},
-	})
+	}
 }
 
 func logger() (lager.Logger, *lager.ReconfigurableSink) {

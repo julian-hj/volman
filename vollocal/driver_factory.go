@@ -51,6 +51,7 @@ func (r *realDriverFactory) Discover(logger lager.Logger) (map[string]voldriver.
 	logger = logger.Session("discover")
 	logger.Debug("start")
 	defer logger.Debug("end")
+
 	//precedence order: sock -> spec -> json
 	spec_types := [3]string{"sock", "spec", "json"}
 	endpoints := make(map[string]voldriver.Driver)
@@ -62,11 +63,15 @@ func (r *realDriverFactory) Discover(logger lager.Logger) (map[string]voldriver.
 		logger.Debug("driver-specs", lager.Data{"drivers": matchingDriverSpecs})
 		endpoints = r.insertIfNotFound(logger, endpoints, matchingDriverSpecs)
 	}
-	logger.Debug("found-specs", lager.Data{"endpoints": endpoints})
+	logger.Debug("found-specs")
 	return endpoints, nil
 }
 
 func (r *realDriverFactory) insertIfNotFound(logger lager.Logger, endpoints map[string]voldriver.Driver, specs []string) map[string]voldriver.Driver {
+	logger = logger.Session("insert-if-not-found")
+	logger.Debug("start")
+	defer logger.Debug("end")
+
 	for _, spec := range specs {
 		re := regexp.MustCompile("([^/]*/)?([^/]*)\\.(sock|spec|json)$")
 
@@ -76,23 +81,23 @@ func (r *realDriverFactory) insertIfNotFound(logger lager.Logger, endpoints map[
 		}
 		specName := segs2[0][2]
 		specFile := segs2[0][2] + "." + segs2[0][3]
-		logger.Debug("insert-unique-specs", lager.Data{"specname": specName})
+		logger.Debug("insert-unique-spec", lager.Data{"specname": specName})
 		_, ok := endpoints[specName]
 		if ok == false {
 			driver, err := r.Driver(logger, specName, specFile)
 			if err != nil {
-				logger.Error("error in creating driver", err)
+				logger.Error("error-creating-driver", err)
 				continue
 			}
+
 			endpoints[specName] = driver
 		}
 	}
-	logger.Debug("insert-if-unique", lager.Data{"endpoints": endpoints})
 	return endpoints
 }
 
 func (r *realDriverFactory) Driver(logger lager.Logger, driverId string, driverFileName string) (voldriver.Driver, error) {
-	logger = logger.Session("driver-factory", lager.Data{"driverId": driverId, "driverFileName": driverFileName})
+	logger = logger.Session("driver", lager.Data{"driverId": driverId, "driverFileName": driverFileName})
 	logger.Info("start")
 	defer logger.Info("end")
 

@@ -7,50 +7,33 @@ import (
 
 	"os"
 
-	"github.com/cloudfoundry-incubator/volman/voldriver"
 	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
-	"github.com/tedsuo/ifrit"
 )
-
-type DriverSyncer interface {
-	Runner() ifrit.Runner
-}
 
 type driverSyncer struct {
 	sync.RWMutex
-	logger        lager.Logger
-	driverFactory DriverFactory
-	scanInterval  time.Duration
-	clock         clock.Clock
-
+	logger         lager.Logger
+	scanInterval   time.Duration
+	driverFinder   DriverFinder
 	driverRegistry DriverRegistry
+	clock          clock.Clock
 }
 
-func NewDriverSyncer(logger lager.Logger, driverRegistry DriverRegistry, driverPath string, scanInterval time.Duration, clock clock.Clock) *driverSyncer {
+func NewDriverSyncer(
+	logger lager.Logger,
+	scanInterval time.Duration,
+	driverFinder DriverFinder,
+	driverRegistry DriverRegistry,
+	clock clock.Clock,
+) *driverSyncer {
 	return &driverSyncer{
-		logger:        logger,
-		driverFactory: NewDriverFactory(driverPath),
-		scanInterval:  scanInterval,
-		clock:         clock,
-
+		logger:         logger,
+		scanInterval:   scanInterval,
+		driverFinder:   driverFinder,
 		driverRegistry: driverRegistry,
+		clock:          clock,
 	}
-}
-
-func NewDriverSyncerWithDriverFactory(logger lager.Logger, driverRegistry DriverRegistry, driverPaths []string, scanInterval time.Duration, clock clock.Clock, factory DriverFactory) *driverSyncer {
-	return &driverSyncer{
-		logger:        logger,
-		driverFactory: factory,
-		scanInterval:  scanInterval,
-		clock:         clock,
-
-		driverRegistry: driverRegistry,
-	}
-}
-
-func (d *driverSyncer) Runner() ifrit.Runner {
-	return d
 }
 
 func (r *driverSyncer) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
@@ -58,47 +41,47 @@ func (r *driverSyncer) Run(signals <-chan os.Signal, ready chan<- struct{}) erro
 	logger.Info("start")
 	defer logger.Info("end")
 
-	timer := r.clock.NewTimer(r.scanInterval)
+	addNewDriversCh := make(chan error, 1)
+
+	timer := r.clock.NewTimer(0)
 	defer timer.Stop()
-
-	drivers, err := r.driverFactory.Discover(logger)
-	if err != nil {
-		return err
-	}
-
-	r.addNewDrivers(drivers)
-
-	close(ready)
-
-	setDriverCh := make(chan error, 1)
 
 	for {
 		select {
-
-		case <-setDriverCh:
+		case err := <-addNewDriversCh:
+			if err != nil {
+				return err
+			}
+			if ready != nil {
+				close(ready)
+				ready = nil
+			}
 			timer.Reset(r.scanInterval)
 
 		case <-timer.C():
-			drivers, err := r.driverFactory.Discover(logger)
-			if err != nil {
-				setDriverCh <- err
-				continue
-			}
+			go func() {
+				addNewDriversCh <- r.addNewDrivers(logger)
+			}()
 
-			r.addNewDrivers(drivers)
-			setDriverCh <- nil
-
-		case signal := <-signals:
-			logger.Info("received-signal", lager.Data{"signal": signal.String()})
+		case <-signals:
 			return nil
 		}
 	}
 }
 
-func (r *driverSyncer) addNewDrivers(drivers map[string]voldriver.Driver) {
+func (r *driverSyncer) addNewDrivers(logger lager.Logger) error {
+	drivers, err := r.driverFinder.Discover(logger)
+	if err != nil {
+		return err
+	}
+
 	for name, driver := range drivers {
-		if _, exists := r.driverRegistry.Driver(name); exists == false {
-			r.driverRegistry.Add(name, driver)
+		err := r.driverRegistry.Add(name, driver)
+		if err != nil {
+			// log the error but don't stop
+			logger.Error("failed-to-add-driver", err)
 		}
 	}
+
+	return nil
 }

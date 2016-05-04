@@ -22,6 +22,10 @@ type registryEntry struct {
 	activated bool
 }
 
+func newRegistryEntry(driver voldriver.Driver) *registryEntry {
+	return &registryEntry{driver: driver}
+}
+
 type driverRegistry struct {
 	sync.RWMutex
 	registryEntries map[string]*registryEntry
@@ -29,21 +33,7 @@ type driverRegistry struct {
 
 func NewDriverRegistry() DriverRegistry {
 	return &driverRegistry{
-		registryEntries: map[string]*registryEntry{},
-	}
-}
-
-func NewDriverRegistryWith(initialMap map[string]voldriver.Driver) DriverRegistry {
-	registryEntryMap := map[string]*registryEntry{}
-	for name, driver := range initialMap {
-		registryEntryMap[name] = &registryEntry{
-			driver:    driver,
-			activated: false,
-		}
-	}
-
-	return &driverRegistry{
-		registryEntries: registryEntryMap,
+		registryEntries: make(map[string]*registryEntry),
 	}
 }
 
@@ -51,11 +41,11 @@ func (d *driverRegistry) Driver(id string) (voldriver.Driver, bool) {
 	d.RLock()
 	defer d.RUnlock()
 
-	if !d.containsDriver(id) {
+	driverEntry, found := d.registryEntries[id]
+	if !found {
 		return nil, false
 	}
-
-	return d.registryEntries[id].driver, true
+	return driverEntry.driver, true
 }
 
 func (d *driverRegistry) Drivers() map[string]voldriver.Driver {
@@ -74,14 +64,12 @@ func (d *driverRegistry) Add(id string, driver voldriver.Driver) error {
 	d.Lock()
 	defer d.Unlock()
 
-	if d.containsDriver(id) == false {
-		d.registryEntries[id] = &registryEntry{
-			driver:    driver,
-			activated: false,
-		}
-		return nil
+	if _, found := d.registryEntries[id]; !found {
+		return fmt.Errorf("driver-exists")
 	}
-	return fmt.Errorf("driver-exists")
+
+	d.registryEntries[id] = newRegistryEntry(driver)
+	return nil
 }
 
 func (d *driverRegistry) Keys() []string {
@@ -100,11 +88,10 @@ func (d *driverRegistry) Activated(id string) (bool, error) {
 	d.Lock()
 	defer d.Unlock()
 
-	if !d.containsDriver(id) {
+	driverEntry, found := d.registryEntries[id]
+	if !found {
 		return false, fmt.Errorf("driver-not-found")
 	}
-
-	driverEntry := d.registryEntries[id]
 
 	return driverEntry.activated, nil
 }
@@ -113,17 +100,11 @@ func (d *driverRegistry) Activate(id string) error {
 	d.Lock()
 	defer d.Unlock()
 
-	if !d.containsDriver(id) {
+	driverEntry, found := d.registryEntries[id]
+	if !found {
 		return fmt.Errorf("driver-not-found")
 	}
 
-	driverEntry := d.registryEntries[id]
 	driverEntry.activated = true
-
 	return nil
-}
-
-func (d *driverRegistry) containsDriver(id string) bool {
-	_, ok := d.registryEntries[id]
-	return ok
 }

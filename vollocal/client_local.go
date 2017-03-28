@@ -133,7 +133,6 @@ func (client *localClient) Mount(logger lager.Logger, driverId string, volumeId 
 }
 
 func sendMountDurationMetrics(logger lager.Logger, metronClient loggregator_v2.Client, duration time.Duration, driverId string) {
-	// err := volmanMountDuration.Send(duration)
 	err := metronClient.SendDuration(volmanMountDuration, duration)
 	if err != nil {
 		logger.Error("failed-to-send-volman-mount-duration-metric", err)
@@ -144,7 +143,6 @@ func sendMountDurationMetrics(logger lager.Logger, metronClient loggregator_v2.C
 		m = "VolmanMountDurationFor" + driverId
 		driverMountDurations[driverId] = m
 	}
-	// err = m.Send(duration)
 	err = metronClient.SendDuration(m, duration)
 	if err != nil {
 		logger.Error("failed-to-send-volman-mount-duration-metric", err)
@@ -152,7 +150,6 @@ func sendMountDurationMetrics(logger lager.Logger, metronClient loggregator_v2.C
 }
 
 func sendUnmountDurationMetrics(logger lager.Logger, metronClient loggregator_v2.Client, duration time.Duration, driverId string) {
-	// err := volmanUnmountDuration.Send(duration)
 	err := metronClient.SendDuration(volmanUnmountDuration, duration)
 	if err != nil {
 		logger.Error("failed-to-send-volman-unmount-duration-metric", err)
@@ -163,7 +160,6 @@ func sendUnmountDurationMetrics(logger lager.Logger, metronClient loggregator_v2
 		m = "VolmanUnmountDurationFor" + driverId
 		driverUnmountDurations[driverId] = m
 	}
-	// err = m.Send(duration)
 	err = metronClient.SendDuration(m, duration)
 	if err != nil {
 		logger.Error("failed-to-send-volman-unmount-duration-metric", err)

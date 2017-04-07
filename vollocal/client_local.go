@@ -14,10 +14,10 @@ import (
 
 	"code.cloudfoundry.org/clock"
 	"code.cloudfoundry.org/lager"
-	"code.cloudfoundry.org/loggregator_v2"
 	"code.cloudfoundry.org/voldriver"
 	"code.cloudfoundry.org/voldriver/driverhttp"
 	"code.cloudfoundry.org/volman"
+	"github.com/cloudfoundry-incubator/diego-loggregator/loggregator_v2"
 	"github.com/tedsuo/ifrit/grouper"
 )
 
